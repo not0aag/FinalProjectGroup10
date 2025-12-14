@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  # Staging environment service
+  # Runs on port 5000, used for pre-production testing
+  staging:
+    build:
+      context: .  # Build from current directory using Dockerfile
+    ports:
+      - "5000:5000"  # Map host port 5000 to container port 5000
+    environment:
+      - APP_ENV=staging  # Set environment variable for staging
+    container_name: flask-staging
+    restart: unless-stopped
+
+  # Production environment service
+  # Runs on port 6000, used for production deployment
+  production:
+    build:
+      context: .  # Build from current directory using Dockerfile
+    ports:
+      - "6000:5000"  # Map host port 6000 to container port 5000
+    environment:
+      - APP_ENV=production  # Set environment variable for production
+    container_name: flask-production
+    restart: unless-stopped

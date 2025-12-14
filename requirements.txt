@@ -1,0 +1,9 @@
+# Flask web framework
+Flask==2.3.0
+
+# Werkzeug - WSGI utility library (required by Flask)
+Werkzeug==2.3.0
+
+# Testing dependencies
+pytest==7.4.0
+requests==2.31.0
