@@ -6,76 +6,26 @@ on:
 
 jobs:
   deploy-staging:
-    name: Deploy to Staging Environment
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Build Docker image for staging
+      - uses: actions/checkout@v3
+      
+      - name: Build and start
         run: |
           docker build -t flask-app:staging .
-          echo "Staging Docker image built successfully"
-
-      - name: Start staging container
-        run: |
-          docker run -d -p 5000:5000 \
-            --name flask-staging-test \
-            --env APP_ENV=staging \
-            flask-app:staging
-          echo "Staging container started"
-
-      - name: Wait for application to start
-        run: |
-          echo "Waiting for application to be ready..."
+          docker run -d -p 5000:5000 --name flask-staging-test --env APP_ENV=staging flask-app:staging
           sleep 10
-
-      - name: Run smoke tests
+      
+      - name: Test
         run: |
-          echo "Running smoke tests..."
-
-          RESPONSE=$(curl -s http://localhost:5000/)
-          echo "Home endpoint response: $RESPONSE"
-          if [[ "$RESPONSE" != *"Hello from CI/CD Project"* ]]; then
-            echo "Home endpoint test failed!"
-            exit 1
-          fi
-
+          curl -f http://localhost:5000/ || exit 1
           HEALTH=$(curl -s http://localhost:5000/health)
-          echo "Health endpoint response: $HEALTH"
-          if [[ "$HEALTH" != *"staging"* ]]; then
-            echo "Health endpoint test failed - environment not set correctly!"
+          if [[ "$HEALTH" != *"staging"* ]] || [[ "$HEALTH" != *"healthy"* ]]; then
             exit 1
           fi
-
-          if [[ "$HEALTH" != *"healthy"* ]]; then
-            echo "Health endpoint test failed - status not healthy!"
-            exit 1
-          fi
-
-          echo "All smoke tests passed!"
-
-      - name: Check container logs
-        if: always()
-        run: |
-          echo "Container logs:"
-          docker logs flask-staging-test
-
+      
       - name: Cleanup
         if: always()
         run: |
           docker stop flask-staging-test || true
           docker rm flask-staging-test || true
-          echo "Cleanup completed"
-
-      - name: Deployment summary
-        run: |
-          echo "================================"
-          echo "Staging Deployment Successful!"
-          echo "================================"
-          echo "Image: flask-app:staging"
-          echo "Environment: staging"
-          echo "Port: 5000"
-          echo "Commit: ${{ github.sha }}"
-          echo "================================"

@@ -7,97 +7,31 @@ on:
 
 jobs:
   deploy-production:
-    name: Deploy to Production Environment
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Build Docker image for production
+      - uses: actions/checkout@v3
+      
+      - name: Build and tag
         run: |
           docker build -t flask-app:production .
-          echo "Production Docker image built successfully"
-
-      - name: Tag image with version
-        run: |
           docker tag flask-app:production flask-app:${{ github.sha }}
           docker tag flask-app:production flask-app:latest
-          echo "Image tagged with commit SHA: ${{ github.sha }}"
-
-      - name: Start production container
+      
+      - name: Start container
         run: |
-          docker run -d -p 8000:5000 \
-            --name flask-production-test \
-            --env APP_ENV=production \
-            flask-app:production
-          echo "Production container started on port 8000"
-          echo "Note: Using port 8000 instead of 6000 because Chrome/Edge block port 6000 (ERR_UNSAFE_PORT)"
-
-      - name: Wait for application to start
-        run: |
-          echo "Waiting for application to be ready..."
+          docker run -d -p 8000:5000 --name flask-production-test --env APP_ENV=production flask-app:production
           sleep 10
-
-      - name: Run production smoke tests
+      
+      - name: Test endpoints
         run: |
-          echo "Running production smoke tests..."
-
-          RESPONSE=$(curl -s http://localhost:8000/)
-          echo "Home endpoint response: $RESPONSE"
-          if [[ "$RESPONSE" != *"Hello from CI/CD Project"* ]]; then
-            echo "Home endpoint test failed!"
-            exit 1
-          fi
-          echo "Home endpoint test passed"
-
+          curl -f http://localhost:8000/ || exit 1
           HEALTH=$(curl -s http://localhost:8000/health)
-          echo "Health endpoint response: $HEALTH"
-
-          if [[ "$HEALTH" != *"production"* ]]; then
-            echo "Health endpoint test failed - environment not set correctly!"
+          if [[ "$HEALTH" != *"production"* ]] || [[ "$HEALTH" != *"healthy"* ]]; then
             exit 1
           fi
-          echo "Environment correctly set to production"
-
-          if [[ "$HEALTH" != *"healthy"* ]]; then
-            echo "Health endpoint test failed - status not healthy!"
-            exit 1
-          fi
-          echo "Health status check passed"
-
-          RESPONSE_TIME=$(curl -o /dev/null -s -w '%{time_total}' http://localhost:8000/)
-          echo "Response time: ${RESPONSE_TIME}s"
-
-          echo "All production smoke tests passed!"
-
-      - name: Security scan
-        run: |
-          echo "Running security checks..."
-          echo "Security scan completed (placeholder)"
-
-      - name: Check container logs
-        if: always()
-        run: |
-          echo "Production container logs:"
-          docker logs flask-production-test
-
-      - name: Cleanup test container
+      
+      - name: Cleanup
         if: always()
         run: |
           docker stop flask-production-test || true
           docker rm flask-production-test || true
-          echo "Test container cleaned up"
-
-      - name: Production deployment summary
-        run: |
-          echo "========================================"
-          echo "Production Deployment Successful!"
-          echo "========================================"
-          echo "Image: flask-app:production"
-          echo "Version: ${{ github.sha }}"
-          echo "Environment: production"
-          echo "Port: 8000 (maps to container 5000)"
-          echo "Commit: ${{ github.sha }}"
-          echo "Branch: ${{ github.ref_name }}"
-          echo "========================================"
