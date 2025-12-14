@@ -1,100 +1,87 @@
 name: Deploy to Production
 
-# Trigger this workflow on push to main branch or manually
 on:
   push:
     branches: [main]
-  workflow_dispatch: # Allow manual trigger from GitHub UI
+  workflow_dispatch:
 
 jobs:
-  # Deploy to production environment
   deploy-production:
     name: Deploy to Production Environment
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout the repository code
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Step 2: Build Docker image with production tag
       - name: Build Docker image for production
         run: |
           docker build -t flask-app:production .
           echo "Production Docker image built successfully"
 
-      # Step 3: Tag with commit SHA for versioning
       - name: Tag image with version
         run: |
           docker tag flask-app:production flask-app:${{ github.sha }}
           docker tag flask-app:production flask-app:latest
           echo "Image tagged with commit SHA: ${{ github.sha }}"
 
-      # Step 4: Run the production container for testing
       - name: Start production container
         run: |
-          docker run -d -p 6000:5000 \
+          docker run -d -p 8000:5000 \
             --name flask-production-test \
             --env APP_ENV=production \
             flask-app:production
-          echo "Production container started on port 6000"
+          echo "Production container started on port 8000"
+          echo "Note: Using port 8000 instead of 6000 because Chrome/Edge block port 6000 (ERR_UNSAFE_PORT)"
 
-      # Step 5: Wait for container to be ready
       - name: Wait for application to start
         run: |
           echo "Waiting for application to be ready..."
           sleep 10
 
-      # Step 6: Run comprehensive smoke tests
       - name: Run production smoke tests
         run: |
           echo "Running production smoke tests..."
 
-          # Test home endpoint
-          RESPONSE=$(curl -s http://localhost:6000/)
+          RESPONSE=$(curl -s http://localhost:8000/)
           echo "Home endpoint response: $RESPONSE"
           if [[ "$RESPONSE" != *"Hello from CI/CD Project"* ]]; then
-            echo "❌ Home endpoint test failed!"
+            echo "Home endpoint test failed!"
             exit 1
           fi
-          echo "✓ Home endpoint test passed"
+          echo "Home endpoint test passed"
 
-          # Test health endpoint
-          HEALTH=$(curl -s http://localhost:6000/health)
+          HEALTH=$(curl -s http://localhost:8000/health)
           echo "Health endpoint response: $HEALTH"
 
           if [[ "$HEALTH" != *"production"* ]]; then
-            echo "❌ Health endpoint test failed - environment not set correctly!"
+            echo "Health endpoint test failed - environment not set correctly!"
             exit 1
           fi
-          echo "✓ Environment correctly set to production"
+          echo "Environment correctly set to production"
 
           if [[ "$HEALTH" != *"healthy"* ]]; then
-            echo "❌ Health endpoint test failed - status not healthy!"
+            echo "Health endpoint test failed - status not healthy!"
             exit 1
           fi
-          echo "✓ Health status check passed"
+          echo "Health status check passed"
 
-          # Test response time
-          RESPONSE_TIME=$(curl -o /dev/null -s -w '%{time_total}' http://localhost:6000/)
+          RESPONSE_TIME=$(curl -o /dev/null -s -w '%{time_total}' http://localhost:8000/)
           echo "Response time: ${RESPONSE_TIME}s"
 
-          echo "✅ All production smoke tests passed!"
+          echo "All production smoke tests passed!"
 
-      # Step 7: Security scan (placeholder - in real scenario, use Trivy or Snyk)
       - name: Security scan
         run: |
           echo "Running security checks..."
-          echo "✓ Security scan completed (placeholder)"
+          echo "Security scan completed (placeholder)"
 
-      # Step 8: Check container logs
       - name: Check container logs
         if: always()
         run: |
           echo "Production container logs:"
           docker logs flask-production-test
 
-      # Step 9: Cleanup test container
       - name: Cleanup test container
         if: always()
         run: |
@@ -102,37 +89,15 @@ jobs:
           docker rm flask-production-test || true
           echo "Test container cleaned up"
 
-      # Step 10: Deployment summary and next steps
-      # NOTE: In a real production scenario, you would:
-      # - Push image to container registry (Docker Hub, AWS ECR, Azure ACR)
-      # - Deploy to cloud service (AWS ECS, Azure Container Apps, Kubernetes)
-      # - Update load balancer or service mesh
-      # - Run post-deployment verification
       - name: Production deployment summary
         run: |
           echo "========================================"
-          echo "🚀 Production Deployment Successful!"
+          echo "Production Deployment Successful!"
           echo "========================================"
           echo "Image: flask-app:production"
           echo "Version: ${{ github.sha }}"
           echo "Environment: production"
-          echo "Port: 6000 (maps to container 5000)"
+          echo "Port: 8000 (maps to container 5000)"
           echo "Commit: ${{ github.sha }}"
           echo "Branch: ${{ github.ref_name }}"
           echo "========================================"
-          echo ""
-          echo "📋 Next Steps (Manual):"
-          echo "1. Push image to container registry"
-          echo "2. Deploy to production infrastructure"
-          echo "3. Update DNS/load balancer"
-          echo "4. Monitor application metrics"
-          echo "5. Verify production health checks"
-          echo "========================================"
-
-      # NOTE: Uncomment this step to require manual approval before production deployment
-      # - name: Wait for approval
-      #   uses: trstringer/manual-approval@v1
-      #   with:
-      #     secret: ${{ github.TOKEN }}
-      #     approvers: your-github-username
-      #     minimum-approvals: 1
